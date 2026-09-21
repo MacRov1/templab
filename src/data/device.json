@@ -1,0 +1,6 @@
+{
+  "nombre": "ESP32 DevKit V1",
+  "modelo": "ESP32-WROOM-32D",
+  "mac": "XX:XX:XX:XX:XX:XX",
+  "descripcion": "Microcontrolador ESP32 con Wi-Fi y Bluetooth integrados, procesador de doble núcleo Xtensa LX6 a 240 MHz, 520 KB SRAM y sensor de temperatura interno."
+}

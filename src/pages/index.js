@@ -1,178 +1,339 @@
-import * as React from "react"
+import React from "react"
+import { Link } from "gatsby"
+import Layout from "../components/Layout"
+import RecordCard from "../components/RecordCard"
+import JoystickVisualizer from "../components/JoystickVisualizer"
+import CurrentDataCard from "../components/CurrentDataCard"
+import useEsp32Realtime from "../hooks/useEsp32Realtime"
+import device from "../data/device.json"
+import records from "../data/records.json"
 
-const pageStyles = {
-  color: "#232129",
-  padding: 96,
-  fontFamily: "-apple-system, Roboto, sans-serif, serif",
-}
-const headingStyles = {
-  marginTop: 0,
-  marginBottom: 64,
-  maxWidth: 320,
-}
-const headingAccentStyles = {
-  color: "#663399",
-}
-const paragraphStyles = {
-  marginBottom: 48,
-}
-const codeStyles = {
-  color: "#8A6534",
-  padding: 4,
-  backgroundColor: "#FFF4DB",
-  fontSize: "1.25rem",
-  borderRadius: 4,
-}
-const listStyles = {
-  marginBottom: 96,
-  paddingLeft: 0,
-}
-const listItemStyles = {
-  fontWeight: 300,
-  fontSize: 24,
-  maxWidth: 560,
-  marginBottom: 30,
+// Convierte segundos (como los envía el ESP32) a texto legible.
+// Ej: 83 → "1m 23s", 3600 → "1h 0m", 7265 → "2h 1m 5s".
+const formatUptime = totalSeconds => {
+  if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0) {
+    return null
+  }
+  const s = Math.floor(totalSeconds)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const parts = []
+  if (h > 0) parts.push(`${h}h`)
+  if (m > 0 || h > 0) parts.push(`${m}m`)
+  if (sec > 0 || parts.length === 0) parts.push(`${sec}s`)
+  return parts.join(" ")
 }
 
-const linkStyle = {
-  color: "#8954A8",
-  fontWeight: "bold",
-  fontSize: 16,
-  verticalAlign: "5%",
-}
+const HomePage = () => {
+  // FASE 3 + 4.1: una única suscripción MQTT; el joystick, las tarjetas
+  // de estado y el último registro consumen joystick.*, estado.* y registro.
+  const { joystick, estado, registro, connection } = useEsp32Realtime()
+  const features = [
+    { label: "Wi-Fi integrado", icon: "wifi" },
+    { label: "Bluetooth integrado", icon: "bluetooth" },
+    { label: "Procesador de doble núcleo", icon: "cpu" },
+    { label: "Sensor de temperatura interno", icon: "thermometer" },
+  ]
 
-const docLinkStyle = {
-  ...linkStyle,
-  listStyleType: "none",
-  marginBottom: 24,
-}
+  const FeatureIcon = ({ name }) => {
+    const icons = {
+      wifi: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      ),
+      bluetooth: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+      ),
+      cpu: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+        </svg>
+      ),
+      thermometer: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+      ),
+    }
+    return icons[name] || icons.wifi
+  }
 
-const descriptionStyle = {
-  color: "#232129",
-  fontSize: 14,
-  marginTop: 10,
-  marginBottom: 0,
-  lineHeight: 1.25,
-}
+  const lastRecords = records.slice(-3).reverse()
 
-const docLink = {
-  text: "Documentation",
-  url: "https://www.gatsbyjs.com/docs/",
-  color: "#8954A8",
-}
+  // FASE 3: tarjetas vivas desde templab/esp32/estado.
+  // Sin datos todavía → "—" (nunca 0 ni "Desconectado" inventados).
+  const uptimeText = formatUptime(estado.uptime)
+  const estadoCards = [
+    {
+      id: "temperatura",
+      label: "Temperatura",
+      value: estado.temperatura != null ? estado.temperatura.toFixed(1) : "—",
+      unit: estado.temperatura != null ? "°C" : "",
+      icon: <FeatureIcon name="thermometer" />,
+    },
+    {
+      id: "internet",
+      label: "Internet",
+      value:
+        estado.internet === true
+          ? "Conectado"
+          : estado.internet === false
+            ? "Desconectado"
+            : "—",
+      unit: "",
+      icon: <FeatureIcon name="wifi" />,
+    },
+    {
+      id: "bluetooth",
+      label: "Bluetooth",
+      value:
+        estado.bluetooth === true
+          ? "Conectado"
+          : estado.bluetooth === false
+            ? "Desconectado"
+            : "—",
+      unit: "",
+      icon: <FeatureIcon name="bluetooth" />,
+    },
+    {
+      id: "mac",
+      label: "MAC",
+      value: estado.mac ?? "—",
+      unit: "",
+      icon: <FeatureIcon name="cpu" />,
+      wide: true,
+    },
+    {
+      id: "uptime",
+      label: "Uptime",
+      value: uptimeText ?? "—",
+      unit: "",
+      icon: <FeatureIcon name="cpu" />,
+    },
+  ]
 
-const badgeStyle = {
-  color: "#fff",
-  backgroundColor: "#088413",
-  border: "1px solid #088413",
-  fontSize: 11,
-  fontWeight: "bold",
-  letterSpacing: 1,
-  borderRadius: 4,
-  padding: "4px 6px",
-  display: "inline-block",
-  position: "relative",
-  top: -2,
-  marginLeft: 10,
-  lineHeight: 1,
-}
-
-const links = [
-  {
-    text: "Tutorial",
-    url: "https://www.gatsbyjs.com/docs/tutorial/getting-started/",
-    description:
-      "A great place to get started if you're new to web development. Designed to guide you through setting up your first Gatsby site.",
-    color: "#E95800",
-  },
-  {
-    text: "How to Guides",
-    url: "https://www.gatsbyjs.com/docs/how-to/",
-    description:
-      "Practical step-by-step guides to help you achieve a specific goal. Most useful when you're trying to get something done.",
-    color: "#1099A8",
-  },
-  {
-    text: "Reference Guides",
-    url: "https://www.gatsbyjs.com/docs/reference/",
-    description:
-      "Nitty-gritty technical descriptions of how Gatsby works. Most useful when you need detailed information about Gatsby's APIs.",
-    color: "#BC027F",
-  },
-  {
-    text: "Conceptual Guides",
-    url: "https://www.gatsbyjs.com/docs/conceptual/",
-    description:
-      "Big-picture explanations of higher-level Gatsby concepts. Most useful for building understanding of a particular topic.",
-    color: "#0D96F2",
-  },
-  {
-    text: "Plugin Library",
-    url: "https://www.gatsbyjs.com/plugins",
-    description:
-      "Add functionality and customize your Gatsby site or app with thousands of plugins built by our amazing developer community.",
-    color: "#8EB814",
-  },
-  {
-    text: "Build and Host",
-    url: "https://www.gatsbyjs.com/cloud",
-    badge: true,
-    description:
-      "Now you’re ready to show the world! Give your Gatsby site superpowers: Build and host on Netlify. Get started for free!",
-    color: "#663399",
-  },
-]
-
-const IndexPage = () => {
   return (
-    <main style={pageStyles}>
-      <h1 style={headingStyles}>
-        Congratulations
-        <br />
-        <span style={headingAccentStyles}>
-          — you just made a Gatsby site! 🎉🎉🎉
-        </span>
-      </h1>
-      <p style={paragraphStyles}>
-        Edit <code style={codeStyles}>src/pages/index.js</code> to see this page
-        update in real-time. 😎
-      </p>
-      <ul style={listStyles}>
-        <li style={docLinkStyle}>
-          <a
-            style={linkStyle}
-            href={`${docLink.url}?utm_source=starter&utm_medium=start-page&utm_campaign=minimal-starter`}
-          >
-            {docLink.text}
-          </a>
-        </li>
-        {links.map(link => (
-          <li key={link.url} style={{ ...listItemStyles, color: link.color }}>
-            <span>
-              <a
-                style={linkStyle}
-                href={`${link.url}?utm_source=starter&utm_medium=start-page&utm_campaign=minimal-starter`}
-              >
-                {link.text}
-              </a>
-              {link.badge && (
-                <span style={badgeStyle} aria-label="New Badge">
-                  NEW!
+    <Layout
+      title="TempLab — Monitor simple de un ESP32"
+      description="Visualiza datos actuales de un ESP32 y consulta registros históricos."
+    >
+      <section className="py-12 sm:py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <header className="text-center mb-12 sm:mb-16">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-4">
+              TempLab
+            </h1>
+            <p className="text-xl sm:text-2xl text-slate-400 max-w-2xl mx-auto">
+              Monitor simple de un ESP32
+            </p>
+            <p className="mt-4 text-slate-500 text-lg max-w-2xl mx-auto">
+              Este sitio permite visualizar información básica del dispositivo, consultar datos actuales
+              y revisar registros históricos enviados por el ESP32.
+            </p>
+          </header>
+
+          <section aria-labelledby="features-heading" className="mb-12 sm:mb-16">
+            <h2 id="features-heading" className="text-2xl sm:text-3xl font-bold text-white text-center mb-8">
+              Características del ESP32
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-4xl mx-auto">
+              {features.map((feature) => (
+                <div
+                  key={feature.label}
+                  className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 text-center hover:border-slate-700 transition-colors"
+                >
+                  <div className="text-cyan-400 mb-3" aria-hidden="true">
+                    <FeatureIcon name={feature.icon} />
+                  </div>
+                  <p className="text-slate-300 text-sm font-medium">{feature.label}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section aria-labelledby="current-state-heading" className="mb-12 sm:mb-16">
+            <h2 id="current-state-heading" className="text-2xl sm:text-3xl font-bold text-white text-center mb-8">
+              Estado actual
+            </h2>
+            {/* FASE 1: indicador mínimo de conexión MQTT en vivo (temporal, para verificación). */}
+            <div className="flex justify-center mb-6" role="status" aria-live="polite">
+              {connection.connected ? (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-400 text-sm font-medium">
+                  <span className="w-2 h-2 rounded-full bg-green-400" aria-hidden="true" />
+                  ESP32 conectado
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
+                  Esperando conexión…
                 </span>
               )}
-              <p style={descriptionStyle}>{link.description}</p>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <img
-        alt="Gatsby G Logo"
-        src="data:image/svg+xml,%3Csvg width='24' height='24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12 2a10 10 0 110 20 10 10 0 010-20zm0 2c-3.73 0-6.86 2.55-7.75 6L14 19.75c3.45-.89 6-4.02 6-7.75h-5.25v1.5h3.45a6.37 6.37 0 01-3.89 4.44L6.06 9.69C7 7.31 9.3 5.63 12 5.63c2.13 0 4 1.04 5.18 2.65l1.23-1.06A7.959 7.959 0 0012 4zm-8 8a8 8 0 008 8c.04 0 .09 0-8-8z' fill='%23639'/%3E%3C/svg%3E"
-      />
-    </main>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 max-w-6xl mx-auto items-stretch">
+              {/* Estado actual del ESP32 (en vivo desde templab/esp32/estado) */}
+              <div className="flex flex-col h-full">
+                <h3 className="text-lg sm:text-xl font-bold text-white text-center mb-4">Estado del ESP32</h3>
+                {/* 2×2: las cards son items directos del grid y comparten filas
+                    de igual alto (auto-rows-fr), rellenando la altura disponible */}
+                <div className="grid grid-cols-2 auto-rows-fr gap-2 sm:gap-3 flex-1">
+                  {estadoCards.filter(card => !card.wide).map(card => (
+                    <CurrentDataCard
+                      key={card.id}
+                      id={card.id}
+                      label={card.label}
+                      value={card.value}
+                      unit={card.unit}
+                      icon={card.icon}
+                    />
+                  ))}
+                </div>
+                {/* MAC: ancho completo, altura natural */}
+                <div className="mt-2 sm:mt-3">
+                  {estadoCards.filter(card => card.wide).map(card => (
+                    <CurrentDataCard
+                      key={card.id}
+                      id={card.id}
+                      label={card.label}
+                      value={card.value}
+                      unit={card.unit}
+                      icon={card.icon}
+                    />
+                  ))}
+                </div>
+                {!connection.connected && (
+                  <p className="text-slate-500 text-sm mt-4 text-center">
+                    Esperando datos del dispositivo…
+                  </p>
+                )}
+              </div>
+
+              {/* Visualizador de Joystick (mismos datos vivos en desktop y móvil).
+                  La columna ocupa toda la altura de la fila y centra el panel,
+                  equilibrándola con el bloque izquierdo sin alturas fijas. */}
+              <div className="hidden lg:flex lg:flex-col lg:justify-center h-full">
+                <JoystickVisualizer
+                  x={joystick.x}
+                  y={joystick.y}
+                  button={joystick.button}
+                  connected={connection.connected}
+                />
+              </div>
+            </div>
+            
+            {/* Versión mobile: joystick debajo del estado (mismos datos vivos) */}
+            <div className="lg:hidden mt-6">
+              <JoystickVisualizer
+                x={joystick.x}
+                y={joystick.y}
+                button={joystick.button}
+                connected={connection.connected}
+              />
+            </div>
+          </section>
+
+          {/* FASE 4.1 (temporal): último registro en vivo desde templab/esp32/registro.
+              No persiste nada ni modifica los registros históricos demo. */}
+          <section aria-labelledby="live-registro-heading" className="mb-12">
+            <div className="max-w-3xl mx-auto">
+              <h2 id="live-registro-heading" className="text-2xl sm:text-3xl font-bold text-white mb-6">
+                Último registro recibido
+              </h2>
+              {!registro ? (
+                <p className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 text-center text-slate-400">
+                  Esperando registro…
+                </p>
+              ) : (
+                <dl className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <dt className="text-slate-500">Fecha y hora</dt>
+                    <dd className="text-white font-medium">
+                      {typeof registro.fecha === "string" && registro.fecha
+                        ? new Date(registro.fecha).toLocaleString("es-ES", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Temperatura interna del ESP32</dt>
+                    <dd className="text-white font-medium">
+                      {typeof registro.temperatura === "number" && Number.isFinite(registro.temperatura)
+                        ? `${registro.temperatura.toFixed(1)} °C`
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Conexión a Internet</dt>
+                    <dd className="text-white font-medium">
+                      {registro.internet === true
+                        ? "Conectado"
+                        : registro.internet === false
+                          ? "Desconectado"
+                          : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Bluetooth</dt>
+                    <dd className="text-white font-medium">
+                      {registro.bluetooth === true
+                        ? "Conectado"
+                        : registro.bluetooth === false
+                          ? "Desconectado"
+                          : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">MAC</dt>
+                    <dd className="text-white font-medium font-mono">
+                      {typeof registro.mac === "string" && registro.mac ? registro.mac : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-slate-500">Uptime</dt>
+                    <dd className="text-white font-medium">
+                      {formatUptime(registro.uptime) ?? "—"}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+              <p className="text-slate-500 text-xs mt-3 text-center">
+                Datos en vivo desde templab/esp32/registro. No se guardan ni modifican los registros históricos.
+              </p>
+            </div>
+          </section>
+
+          {records.length > 0 && (
+            <section aria-labelledby="last-records-heading" className="mb-12">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <h2 id="last-records-heading" className="text-2xl sm:text-3xl font-bold text-white">
+                  Últimos registros
+                </h2>
+                <Link
+                  to="/registros/"
+                  className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors whitespace-nowrap"
+                >
+                  Ver todos los registros
+                </Link>
+              </div>
+              <div className="space-y-3 max-w-3xl mx-auto">
+                {lastRecords.map((record) => (
+                  <RecordCard key={record.id} record={record} />
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      </section>
+    </Layout>
   )
 }
 
-export default IndexPage
-
-export const Head = () => <title>Home Page</title>
+export default HomePage

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "registro-1",
+    "slug": "registro-1",
+    "fecha": "2026-09-18T10:00:00",
+    "temperatura": 28.4,
+    "internet": "Conectado",
+    "bluetooth": "Disponible",
+    "uptime": "2h 10m"
+  },
+  {
+    "id": "registro-2",
+    "slug": "registro-2",
+    "fecha": "2026-09-18T10:10:00",
+    "temperatura": 28.7,
+    "internet": "Conectado",
+    "bluetooth": "Disponible",
+    "uptime": "2h 20m"
+  },
+  {
+    "id": "registro-3",
+    "slug": "registro-3",
+    "fecha": "2026-09-18T10:20:00",
+    "temperatura": 28.5,
+    "internet": "Conectado",
+    "bluetooth": "Disponible",
+    "uptime": "2h 30m"
+  },
+  {
+    "id": "registro-4",
+    "slug": "registro-4",
+    "fecha": "2026-09-18T10:30:00",
+    "temperatura": 28.9,
+    "internet": "Conectado",
+    "bluetooth": "Disponible",
+    "uptime": "2h 40m"
+  },
+  {
+    "id": "registro-5",
+    "slug": "registro-5",
+    "fecha": "2026-09-18T10:40:00",
+    "temperatura": 28.6,
+    "internet": "Conectado",
+    "bluetooth": "Disponible",
+    "uptime": "2h 50m"
+  },
+  {
+    "id": "registro-6",
+    "slug": "registro-6",
+    "fecha": "2026-09-18T10:50:00",
+    "temperatura": 28.8,
+    "internet": "Conectado",
+    "bluetooth": "Disponible",
+    "uptime": "3h 0m"
+  }
+]
