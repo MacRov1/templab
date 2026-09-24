@@ -1,20 +1,53 @@
-import React from "react"
+import React, { useEffect, useState } from "react"
 import { Link } from "gatsby"
 import Layout from "../components/Layout"
+import useEsp32Realtime from "../hooks/useEsp32Realtime"
+import { formatConectado, formatFechaHora, formatTemperatura, formatUptime } from "../utils/format"
 
-const RecordDetailTemplate = ({ pageContext }) => {
-  const { slug } = pageContext
-  const record = pageContext.record
+const BackLink = ({ label }) => (
+  <Link
+    to="/registros/"
+    className="inline-flex items-center gap-2 text-slate-400 hover:text-cyan-400 text-sm font-medium transition-colors"
+  >
+    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+    </svg>
+    {label}
+  </Link>
+)
 
-  if (!record) {
+// Detalle resuelto en cliente desde el historial real (máx. 6 en localStorage).
+// Las páginas estáticas de demo ya no se generan: pageContext solo se conserva
+// como respaldo del slug.
+const RecordDetailTemplate = ({ pageContext, params }) => {
+  const { historial } = useEsp32Realtime()
+  // Evita mismatch de hidratación: el historial solo existe en el navegador.
+  const [montado, setMontado] = useState(false)
+  useEffect(() => {
+    setMontado(true)
+  }, [])
+
+  const slug = params?.slug ?? pageContext?.slug
+  const record = montado ? historial.find(item => item.slug === slug) : undefined
+  const uptimeText = record ? formatUptime(record.uptime) : null
+
+  if (!montado || !record) {
+    const titulo = !montado ? "Cargando registro…" : "Registro no disponible"
+    const texto = !montado
+      ? "Buscando el registro entre los últimos recibidos."
+      : "Ese registro ya no está entre los últimos 6 recibidos del ESP32 (o aún no llegó)."
     return (
-      <Layout title="Registro no encontrado — TempLab">
+      <Layout title={`${titulo} — TempLab`}>
         <section className="py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h1 className="text-3xl font-bold text-white mb-4">Registro no encontrado</h1>
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <div className="mb-6 text-left">
+              <BackLink label="Volver a registros" />
+            </div>
+            <h1 className="text-3xl font-bold text-white mb-4">{titulo}</h1>
+            <p className="text-slate-400 mb-8">{texto}</p>
             <Link
               to="/registros/"
-              className="text-cyan-400 hover:text-cyan-300 inline-block"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white hover:bg-slate-700 hover:border-cyan-500/50 transition-colors"
             >
               Volver a registros
             </Link>
@@ -22,18 +55,6 @@ const RecordDetailTemplate = ({ pageContext }) => {
         </section>
       </Layout>
     )
-  }
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    return date.toLocaleString("es-ES", {
-      weekday: "long",
-      day: "2-digit",
-      month: "long",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
   }
 
   return (
@@ -44,18 +65,21 @@ const RecordDetailTemplate = ({ pageContext }) => {
       <section className="py-12">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <header className="mb-8">
-            <Link
-              to="/registros/"
-              className="inline-flex items-center gap-2 text-slate-400 hover:text-cyan-400 text-sm font-medium transition-colors mb-6"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-              Volver a registros
-            </Link>
+            <div className="mb-6">
+              <BackLink label="Volver a registros" />
+            </div>
             <h1 className="text-3xl font-bold text-white">Detalle del registro</h1>
             <time dateTime={record.fecha} className="text-slate-400 text-lg mt-2 block">
-              {formatDate(record.fecha)}
+              {formatFechaHora(record.fecha) === "—"
+                ? record.fecha
+                : new Date(record.fecha).toLocaleString("es-ES", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "long",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
             </time>
           </header>
 
@@ -63,26 +87,26 @@ const RecordDetailTemplate = ({ pageContext }) => {
             <dl className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 border-b border-slate-800">
                 <dt className="text-slate-400 text-sm font-medium">Temperatura interna del ESP32</dt>
-                <dd className="text-2xl font-bold text-white mt-2 sm:mt-0">{record.temperatura} °C</dd>
+                <dd className="text-2xl font-bold text-white mt-2 sm:mt-0">{formatTemperatura(record.temperatura)}</dd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 border-b border-slate-800">
                 <dt className="text-slate-400 text-sm font-medium">Conexión a Internet</dt>
-                <dd className="text-white font-medium mt-2 sm:mt-0">{record.internet}</dd>
+                <dd className="text-white font-medium mt-2 sm:mt-0">{formatConectado(record.internet)}</dd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 border-b border-slate-800">
                 <dt className="text-slate-400 text-sm font-medium">Bluetooth</dt>
-                <dd className="text-white font-medium mt-2 sm:mt-0">{record.bluetooth}</dd>
+                <dd className="text-white font-medium mt-2 sm:mt-0">{formatConectado(record.bluetooth)}</dd>
               </div>
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4">
                 <dt className="text-slate-400 text-sm font-medium">Uptime</dt>
-                <dd className="text-white font-medium mt-2 sm:mt-0">{record.uptime}</dd>
+                <dd className="text-white font-medium mt-2 sm:mt-0">{uptimeText ?? "—"}</dd>
               </div>
             </dl>
 
             <div className="pt-4 border-t border-slate-800 text-sm text-slate-500">
               <p>
-                <strong>Nota:</strong> Estos son datos de demostración. No fueron obtenidos
-                de un ESP32 físico conectado en tiempo real.
+                Registro real recibido del ESP32 vía MQTT y guardado localmente
+                entre los últimos 6.
               </p>
             </div>
           </div>
@@ -93,7 +117,7 @@ const RecordDetailTemplate = ({ pageContext }) => {
               className="inline-flex items-center gap-2 px-6 py-3 bg-slate-800/50 border border-slate-700 rounded-lg text-white hover:bg-slate-700 hover:border-cyan-500/50 transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
               Volver a registros
             </Link>

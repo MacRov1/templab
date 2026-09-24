@@ -6,29 +6,12 @@ import JoystickVisualizer from "../components/JoystickVisualizer"
 import CurrentDataCard from "../components/CurrentDataCard"
 import useEsp32Realtime from "../hooks/useEsp32Realtime"
 import device from "../data/device.json"
-import records from "../data/records.json"
-
-// Convierte segundos (como los envía el ESP32) a texto legible.
-// Ej: 83 → "1m 23s", 3600 → "1h 0m", 7265 → "2h 1m 5s".
-const formatUptime = totalSeconds => {
-  if (totalSeconds == null || !Number.isFinite(totalSeconds) || totalSeconds < 0) {
-    return null
-  }
-  const s = Math.floor(totalSeconds)
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  const parts = []
-  if (h > 0) parts.push(`${h}h`)
-  if (m > 0 || h > 0) parts.push(`${m}m`)
-  if (sec > 0 || parts.length === 0) parts.push(`${sec}s`)
-  return parts.join(" ")
-}
+import { formatUptime } from "../utils/format"
 
 const HomePage = () => {
-  // FASE 3 + 4.1: una única suscripción MQTT; el joystick, las tarjetas
-  // de estado y el último registro consumen joystick.*, estado.* y registro.
-  const { joystick, estado, registro, connection } = useEsp32Realtime()
+  // Una única suscripción MQTT: joystick.*, estado.*, registro e historial
+  // de últimos registros reales (máx. 6, persistido en localStorage).
+  const { joystick, estado, registro, historial, connection } = useEsp32Realtime()
   const features = [
     { label: "Wi-Fi integrado", icon: "wifi" },
     { label: "Bluetooth integrado", icon: "bluetooth" },
@@ -62,7 +45,7 @@ const HomePage = () => {
     return icons[name] || icons.wifi
   }
 
-  const lastRecords = records.slice(-3).reverse()
+  const lastRecords = historial.slice(0, 3)
 
   // FASE 3: tarjetas vivas desde templab/esp32/estado.
   // Sin datos todavía → "—" (nunca 0 ni "Desconectado" inventados).
@@ -310,7 +293,7 @@ const HomePage = () => {
             </div>
           </section>
 
-          {records.length > 0 && (
+          {historial.length > 0 && (
             <section aria-labelledby="last-records-heading" className="mb-12">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
                 <h2 id="last-records-heading" className="text-2xl sm:text-3xl font-bold text-white">
@@ -323,6 +306,11 @@ const HomePage = () => {
                   Ver todos los registros
                 </Link>
               </div>
+              {!connection.connected && (
+                <p className="text-slate-500 text-sm mb-4 text-center">
+                  Mostrando registros guardados localmente (sin conexión en vivo).
+                </p>
+              )}
               <div className="space-y-3 max-w-3xl mx-auto">
                 {lastRecords.map((record) => (
                   <RecordCard key={record.id} record={record} />

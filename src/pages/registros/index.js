@@ -1,9 +1,11 @@
 import React, { useState, useMemo } from "react"
 import Layout from "../../components/Layout"
 import RecordCard from "../../components/RecordCard"
-import records from "../../data/records.json"
+import useEsp32Realtime from "../../hooks/useEsp32Realtime"
 
 const RecordsPage = () => {
+  // Historial real (máx. 6, persistido en localStorage). Sin datos ficticios.
+  const { historial: records, connection } = useEsp32Realtime()
   const [searchQuery, setSearchQuery] = useState("")
 
   const filteredRecords = useMemo(() => {

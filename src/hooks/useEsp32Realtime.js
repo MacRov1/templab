@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import mqtt from "mqtt"
+import { agregarAlHistorial, cargarHistorial, guardarHistorial } from "../utils/historial"
 
 // FASE 1: conexión MQTT sobre WebSocket (solo desarrollo en LAN).
 // Broker Mosquitto local: ws://192.168.1.8:9001
@@ -60,11 +61,19 @@ export default function useEsp32Realtime() {
   const [joystick, setJoystick] = useState(initialJoystick)
   const [estado, setEstado] = useState(initialEstado)
   const [registro, setRegistro] = useState(null)
+  // Historial de últimos registros reales (máx. 6, persistido en localStorage).
+  // Inicia vacío para coincidir con el HTML de build (SSR) y se carga en efecto.
+  const [historial, setHistorial] = useState([])
   const [connection, setConnection] = useState({
     connected: false,
     lastMessageAt: null,
   })
   const clientRef = useRef(null)
+
+  // Restaura lo guardado al montar (solo navegador).
+  useEffect(() => {
+    setHistorial(cargarHistorial())
+  }, [])
 
   useEffect(() => {
     // Gatsby/SSR: no existe window durante el build, salir sin conectar.
@@ -130,6 +139,11 @@ export default function useEsp32Realtime() {
           return
         }
         setRegistro(data)
+        setHistorial(prev => {
+          const { historial: next, agregado } = agregarAlHistorial(prev, data)
+          if (agregado) guardarHistorial(next)
+          return agregado ? next : prev
+        })
       } else {
         return
       }
@@ -171,5 +185,5 @@ export default function useEsp32Realtime() {
     }
   }, [])
 
-  return { joystick, estado, registro, connection }
+  return { joystick, estado, registro, historial, connection }
 }
