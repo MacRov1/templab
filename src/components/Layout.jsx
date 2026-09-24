@@ -2,6 +2,7 @@ import React from "react"
 import { Helmet } from "react-helmet"
 import Navbar from "./Navbar"
 import Footer from "./Footer"
+import ErrorBoundary from "./ErrorBoundary"
 
 const Layout = ({ children, title, description }) => {
   const siteTitle = "TempLab — Monitor simple de un ESP32"
@@ -26,7 +27,7 @@ const Layout = ({ children, title, description }) => {
       <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
         <Navbar />
         <main className="flex-1 pt-16" id="main-content" role="main">
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
         <Footer />
       </div>
