@@ -82,49 +82,24 @@ export default function useEsp32Realtime() {
     // Evita crear un segundo cliente si el efecto se re-ejecuta sin cleanup previo.
     if (clientRef.current) return undefined
 
-    // HTTPS + ws:// es mixed content: el navegador lanzaría SecurityError
-    // síncrono y desmontaría React. En ese caso no se intenta conectar y
-    // la app sigue funcionando sin datos en vivo.
-    if (
-      window.location.protocol === "https:" &&
-      MQTT_WS_URL.startsWith("ws://")
-    ) {
-      console.warn(
-        "[MQTT] Página HTTPS con broker ws://: conexión omitida (mixed content). " +
-          "El sitio sigue funcionando sin datos en vivo."
-      )
-      return undefined
-    }
-
-    let client
-    try {
-      console.log("[MQTT] Conectando a", MQTT_WS_URL)
-      client = mqtt.connect(MQTT_WS_URL, {
-        reconnectPeriod: 3000,
-        connectTimeout: 5000,
-        clean: true,
-        clientId: `templab-web-${Math.random().toString(16).slice(2, 10)}`,
-      })
-    } catch (err) {
-      console.error("[MQTT] No se pudo crear el cliente:", err?.message || err)
-      setConnection(prev => ({ ...prev, connected: false }))
-      return undefined
-    }
+    console.log("[MQTT] Conectando a", MQTT_WS_URL)
+    const client = mqtt.connect(MQTT_WS_URL, {
+      reconnectPeriod: 3000,
+      connectTimeout: 5000,
+      clean: true,
+      clientId: `templab-web-${Math.random().toString(16).slice(2, 10)}`,
+    })
     clientRef.current = client
 
     const handleConnect = () => {
       console.log("[MQTT] Conectado. Suscribiendo a:", TOPICS.join(", "))
-      try {
-        client.subscribe(TOPICS, err => {
-          if (err) {
-            console.error("[MQTT] Error al suscribirse:", err)
-            return
-          }
-          console.log("[MQTT] Suscripción OK:", TOPICS.join(", "))
-        })
-      } catch (err) {
-        console.error("[MQTT] Error al suscribirse:", err?.message || err)
-      }
+      client.subscribe(TOPICS, err => {
+        if (err) {
+          console.error("[MQTT] Error al suscribirse:", err)
+          return
+        }
+        console.log("[MQTT] Suscripción OK:", TOPICS.join(", "))
+      })
       setConnection(prev => ({ ...prev, connected: true }))
     }
 
